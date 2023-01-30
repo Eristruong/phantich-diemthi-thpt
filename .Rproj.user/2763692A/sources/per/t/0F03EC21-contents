@@ -1,0 +1,172 @@
+library(dplyr)
+library(shiny)
+library(ggplot2)  
+library(broom)
+library(ggpubr)
+library(shinyWidgets)
+library(DT)
+
+#View(matches1)
+shinyUI <- fluidPage(
+  title = "Examples of DataTables",
+  
+  sidebarLayout(
+    sidebarPanel(
+      conditionalPanel(
+        'input.dataset === "Summary"',
+        fileInput("upload", NULL, accept = c(".csv", ".tsv")),
+        checkboxGroupInput("column", "Choose column", character(0)),
+      ),
+      conditionalPanel(
+        'input.dataset == "Structure"',
+        checkboxGroupInput("column2", "Choose column", character(0))
+        #selectInput("var", "1. Select the variable from the Weather dataset", choices =c("Data.Precipitation" = 1, "Data.Temperature.Max.Temp" = 2, "Data.Temperature.Min.Temp" = 3, "Data.Wind.Speed" = 4), selected = 1),
+        #br(),
+        #radioButtons("radio", h3(" Precipitation"),
+        #   choices = list("Max" = 1, "Min" = 2, "Mean" = 3),selected = 1),
+      ),
+      conditionalPanel(
+        'input.dataset === "Data"',
+        fileInput("upload", NULL, accept = c(".csv", ".tsv")),
+        numericInput("n", "Rows", value = 10, min = 1, step = 1),
+        
+      ),
+      conditionalPanel(
+        'input.dataset === "Plot"',
+        selectInput(inputId = "dat", label = "Select the Dataset of your choice", choices = c("Histogram" = 1, "Pie Chart" = 2, "Line Graph" = 3)),
+        br(),
+        checkboxGroupInput("column1", "Choose column", character(0)),
+        #selectInput("variablex","Choose column 1", character(0)),
+        #selectInput("variabley","Choose column 2",character(0)),
+      ),
+      conditionalPanel(
+        'input.dataset =="Model"',
+        fileInput("upload", NULL, accept = c(".csv", ".tsv")),
+          uiOutput("xvariable"),
+          uiOutput("yvariable")
+         #sidebarpanel
+        
+        #mainPanel( #DTOutput("tb1"), 
+        #  fluidRow(column(6, verbatimTextOutput('lmSummary')) , column(6, plotOutput('diagnosticPlot')))
+        #)
+      )
+    ),
+    mainPanel(
+      tabsetPanel(
+        id="dataset",
+        tabPanel("Summary",  verbatimTextOutput("mytable1")),
+        tabPanel("Structure", DT::dataTableOutput("ta")),
+        tabPanel("Data", tableOutput("head")),
+        tabPanel("Plot", plotOutput("mytable3")),
+        tabPanel("Model",
+                  mainPanel( #DTOutput("tb1"), 
+                    tabsetPanel(
+                      tabPanel("lmSummary",fluidRow(column(12, verbatimTextOutput('lmSummary')))),
+                      tabPanel("diagnosticPlot",fluidRow(column(12, plotOutput('diagnosticPlot')))),
+                    )
+                  )
+        )
+      )
+    )
+  )
+)
+#-----------------------------
+server <- function(output, input, session) {
+  observeEvent(input$upload, {
+    updateCheckboxGroupInput(inputId = "column", choices = names(data1()))
+  })
+  observeEvent(input$upload, {
+    updateCheckboxGroupInput(inputId = "column1", choices = names(data1()))
+  })
+  observeEvent(input$upload, {
+    updateCheckboxGroupInput(inputId = "column2", choices = names(data1()))
+  })
+  output$mytable1 <- renderPrint({
+    summary(data1()[[input$column]])
+  })
+  data1 <- reactive({
+    req(input$upload)
+    inData <- input$upload
+    ext <- tools::file_ext(input$upload$name)
+    if (is.null(inData)){ return(NULL) }
+    mydata <- read.csv(inData$datapath, header = TRUE, sep=",")
+    switch(ext,
+           csv = vroom::vroom(input$upload$datapath, delim = ","),
+           tsv = vroom::vroom(input$upload$datapath, delim = "\t"),
+           validate("Invalid file; Please upload a .csv or .tsv file")
+    )
+  })
+
+  output$tb1 <- renderDT(data1())
+  
+  output$xvariable <- renderUI({
+    req(data1())
+    xa<-colnames(data1())
+    pickerInput(inputId = 'xvar',
+                label = 'Select x-axis variable',
+                choices = c(xa[1:length(xa)]), selected=xa[2],
+                options = list(`style` = "btn-info"),
+                multiple = TRUE)
+    
+  })
+  output$yvariable <- renderUI({
+    req(data1())
+    ya<-colnames(data1()) 
+    pickerInput(inputId = 'yvar',
+                label = 'Select y-axis variable',
+                choices = c(ya[1:length(ya)]), selected=ya[1],
+                options = list(`style` = "btn-info"),
+                multiple = FALSE)
+  })
+
+  
+  lmModel <- reactive({
+    req(data1(),input$xvar,input$yvar)
+    x <- as.numeric(data1()[[as.name(input$xvar)]])
+    y <- as.numeric(data1()[[as.name(input$yvar)]])
+    current_formula <- paste0(input$yvar, " ~ ", paste0(input$xvar, collapse = " + "))
+    current_formula <- as.formula(current_formula)
+    model <- lm(current_formula, data = data1(), na.action=na.exclude)
+    return(model)
+  })
+  output$lmSummary <- renderPrint({
+    req(lmModel())
+    summary(lmModel())
+  })
+  
+  output$diagnosticPlot <- renderPlot({
+    req(lmModel())
+    par(mfrow = c(2,2))
+    plot(lmModel())
+  })
+  
+  output$head <- renderTable({
+    head(data1(), input$n)
+  })
+
+  var <- reactive({
+    switch(input$data1,
+           "Weather" = names(weather),
+           "Data1" = names(data2),
+           "Matches" = names(matches1),
+           "Dealiveries" = names(dealiveries)
+    )
+  }) 
+  output$vx <- renderUI({
+    selectInput("variablex", "Select the First (X) variable", choices = var2())
+  })
+  
+  output$vy <- renderUI({
+    selectInput("variabley", "Select the Second (Y) variable", choices = var2())
+  })
+  output$mytable3 <- renderPlot({
+    attach(get(input$data1))
+    plot(x= get(input$variablex), y= get(input$variabley), xlab=input$variablex, ylab=input$variabley)
+    #ggplot(get(input$data1), aes(x=get(input$variablex), y=get(input$variabley)), environment = environment()) + geom_point() 
+    #hist(weather[,colm], breaks=seq(0, max(weather[,colm]), l=input$bins+1), main="Histogram of Weather dataset", xlab=names(weather[colm]), xlim=c(0,max(weather[,colm])))
+    
+  })
+
+}
+
+shinyApp(shinyUI, server)
