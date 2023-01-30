@@ -2,6 +2,7 @@
 An analyze grades project for R final exam.
 
 Shiny for UI
+
 Draw charts based on the ggplot2 package https://r-charts.com/ggplot2/
 ![image](https://user-images.githubusercontent.com/66561370/215464278-17f82fb4-0839-41fe-bc78-a2f8db4878c4.png)
 ![image](https://user-images.githubusercontent.com/66561370/215464401-e10677a5-20de-487a-a43d-12ccc11fbf51.png)
